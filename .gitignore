@@ -23,3 +23,9 @@ data/*
 !.yarn/releases
 .yarn/releases
 !.yarn/sdks
+
+# terraform
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan

@@ -1,0 +1,132 @@
+name: build-deploy
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - "infra/**"
+      - "docs/**"
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+
+concurrency:
+  group: deploy
+  cancel-in-progress: false
+
+env:
+  AWS_REGION: ${{ vars.AWS_REGION }}
+  ECR_REGISTRY: ${{ vars.ECR_REGISTRY }}
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/lib/android
+          df -h /
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+
+      - uses: aws-actions/amazon-ecr-login@v2
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Build and push base image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile.base
+          platforms: linux/amd64
+          push: true
+          tags: ${{ vars.ECR_REGISTRY }}/outline-base:${{ github.sha }}
+          cache-from: type=gha,scope=base
+          cache-to: type=gha,scope=base,mode=max
+
+      - name: Build and push app image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile
+          platforms: linux/amd64
+          push: true
+          build-args: |
+            BASE_IMAGE=${{ vars.ECR_REGISTRY }}/outline-base:${{ github.sha }}
+          tags: ${{ vars.ECR_REGISTRY }}/outline:${{ github.sha }}
+          cache-from: type=gha,scope=app
+          cache-to: type=gha,scope=app,mode=max
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    env:
+      SHA: ${{ github.sha }}
+      DEPLOY_BUCKET: ${{ vars.DEPLOY_BUCKET }}
+      INSTANCE_ID: ${{ vars.INSTANCE_ID }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+
+      - name: Upload deploy bundle
+        run: aws s3 sync deploy/ "s3://${DEPLOY_BUCKET}/${SHA}/" --delete
+
+      - name: Send deploy command
+        id: send
+        run: |
+          cmd="set -euo pipefail; set -a; . /opt/outline/instance.env; set +a; aws s3 sync s3://\$DEPLOY_BUCKET/${SHA}/ /opt/outline/releases/${SHA}/ --region \$AWS_REGION && bash /opt/outline/releases/${SHA}/deploy.sh ${SHA}"
+          jq -n --arg c "$cmd" '{commands: [$c], executionTimeout: ["1200"]}' > params.json
+          id="$(aws ssm send-command \
+            --instance-ids "$INSTANCE_ID" \
+            --document-name AWS-RunShellScript \
+            --comment "outline deploy ${SHA}" \
+            --parameters file://params.json \
+            --query Command.CommandId --output text)"
+          echo "command_id=$id" >> "$GITHUB_OUTPUT"
+
+      - name: Wait for deploy
+        env:
+          COMMAND_ID: ${{ steps.send.outputs.command_id }}
+        run: |
+          status=""
+          for _ in $(seq 1 120); do
+            sleep 10
+            if ! status="$(aws ssm get-command-invocation \
+                --command-id "$COMMAND_ID" --instance-id "$INSTANCE_ID" \
+                --query Status --output text 2>err.txt)"; then
+              if grep -q InvocationDoesNotExist err.txt; then
+                echo "invocation not registered yet, retrying"
+                continue
+              fi
+              cat err.txt >&2
+              exit 1
+            fi
+            echo "status: $status"
+            case "$status" in
+              Pending|InProgress|Delayed) ;;
+              *) break ;;
+            esac
+          done
+          echo "---- stdout ----"
+          aws ssm get-command-invocation --command-id "$COMMAND_ID" --instance-id "$INSTANCE_ID" \
+            --query StandardOutputContent --output text
+          echo "---- stderr ----"
+          aws ssm get-command-invocation --command-id "$COMMAND_ID" --instance-id "$INSTANCE_ID" \
+            --query StandardErrorContent --output text
+          if [ "$status" != "Success" ]; then
+            echo "deploy failed with status: $status" >&2
+            exit 1
+          fi

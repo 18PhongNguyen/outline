@@ -1,0 +1,6 @@
+﻿
+# on-prem infra: force LF (rendered/executed on Linux)
+*.sh text eol=lf
+*.tftpl text eol=lf
+deploy/** text eol=lf
+
