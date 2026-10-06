@@ -3,10 +3,16 @@ data "aws_iam_openid_connect_provider" "github" {
 }
 
 locals {
+  # GitHub immutable subjects embed owner/repo ids: repo:<owner>@<id>/<repo>@<id>:...
+  # Accept both the immutable and the legacy name-only prefix.
+  gh_sub_prefixes = ["repo:${var.github_repo}", "repo:${var.github_repo_immutable}"]
+  gh_sub_suffixes = {
+    deploy = "ref:refs/heads/main"
+    plan   = "pull_request"
+    apply  = "environment:production"
+  }
   gh_subs = {
-    deploy = "repo:${var.github_repo}:ref:refs/heads/main"
-    plan   = "repo:${var.github_repo}:pull_request"
-    apply  = "repo:${var.github_repo}:environment:production"
+    for k, s in local.gh_sub_suffixes : k => [for p in local.gh_sub_prefixes : "${p}:${s}"]
   }
 }
 
@@ -30,7 +36,7 @@ data "aws_iam_policy_document" "gh_assume" {
     condition {
       test     = "StringEquals"
       variable = "token.actions.githubusercontent.com:sub"
-      values   = [each.value]
+      values   = each.value
     }
   }
 }
