@@ -48,3 +48,23 @@ resource "aws_ssm_parameter" "google_client_secret" {
     ignore_changes = [value]
   }
 }
+
+resource "aws_ssm_parameter" "smtp_username" {
+  name  = "/outline/SMTP_USERNAME"
+  type  = "SecureString"
+  value = "CHANGE_ME"
+
+  lifecycle {
+    ignore_changes = [value]
+  }
+}
+
+resource "aws_ssm_parameter" "smtp_password" {
+  name  = "/outline/SMTP_PASSWORD"
+  type  = "SecureString"
+  value = "CHANGE_ME"
+
+  lifecycle {
+    ignore_changes = [value]
+  }
+}

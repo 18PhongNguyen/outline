@@ -55,7 +55,14 @@ render_env() {
       "FORCE_HTTPS=true",
       "ECR_REGISTRY=\($ecr)",
       "DOMAIN=\($domain)",
-      "OUTLINE_TAG=\($tag)"
+      "OUTLINE_TAG=\($tag)",
+      (if (($p.SMTP_PASSWORD // "CHANGE_ME") != "CHANGE_ME" and ($p.SMTP_USERNAME // "CHANGE_ME") != "CHANGE_ME") then
+        "SMTP_HOST=smtp.gmail.com",
+        "SMTP_PORT=465",
+        "SMTP_SECURE=true",
+        "SMTP_FROM_EMAIL=\($p.SMTP_USERNAME)",
+        "SMTP_REPLY_EMAIL=\($p.SMTP_USERNAME)"
+      else empty end)
   ' <<<"$PARAMS_JSON" >"$tmp"
   mv -f "$tmp" "$ENV_FILE"
 }
