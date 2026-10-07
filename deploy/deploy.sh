@@ -52,6 +52,8 @@ render_env() {
       "AWS_S3_FORCE_PATH_STYLE=true",
       "AWS_S3_ACL=private",
       "FILE_STORAGE_UPLOAD_MAX_SIZE=26214400",
+      "FILE_STORAGE_IMPORT_MAX_SIZE=524288000",
+      "FILE_STORAGE_WORKSPACE_IMPORT_MAX_SIZE=524288000",
       "FORCE_HTTPS=true",
       "ECR_REGISTRY=\($ecr)",
       "DOMAIN=\($domain)",
