@@ -11,12 +11,12 @@ Ngày: 2026-10-06 · Repo triển khai: https://github.com/18PhongNguyen/outline
 ## Quyết định đã chốt
 | Mục | Chọn |
 |---|---|
-| AWS account | `970385383746` (Neverland), region `ap-southeast-1` |
-| Compute | 1 EC2 t3.small (2GB + 2GB swap), AL2023, gp3 30GB, Elastic IP |
+| AWS account | `257394472423` (Neverland), region `ap-southeast-1` |
+| Compute | 1 EC2 t4g.small (ARM, Graviton) (2GB + 2GB swap), AL2023, gp3 30GB, Elastic IP |
 | Runtime | docker compose: caddy + outline + postgres:16 + redis:7 |
 | File storage | S3 private bucket |
 | Auth | Google OAuth |
-| DNS | Zone `launch-mate.com` ở account khác → record A tạo tay, trỏ EIP (Terraform output) |
+| DNS | Zone `launch-mate.com` (Route53) nằm cùng account 257394472423; record A vẫn tạo tay, trỏ EIP (Terraform output) |
 | CI/CD | GitHub Actions trên fork, OIDC assume role, deploy qua SSM (không SSH) |
 | Base code | `main` fork = upstream tag `v1.10.1` + thư mục infra |
 
@@ -40,7 +40,7 @@ Workflow upstream sẵn có trong `.github/workflows/` bị xoá khỏi fork (tr
 
 ## Terraform resources (`infra/terraform/main`)
 - **Mạng:** default VPC; SG ingress 80/443 từ 0.0.0.0/0, không mở 22.
-- **EC2:** t3.small, IMDSv2 bắt buộc, EBS gp3 30GB encrypted, EIP. `user_data`: cài docker + compose plugin, tạo swap 2GB, cron `backup.sh` 19:00 UTC hằng ngày.
+- **EC2:** t4g.small (ARM, Graviton), IMDSv2 bắt buộc, EBS gp3 30GB encrypted, EIP. `user_data`: cài docker + compose plugin, tạo swap 2GB, cron `backup.sh` 19:00 UTC hằng ngày.
 - **S3:** `<prefix>-attachments` (block public, CORS cho domain), `<prefix>-backups` (lifecycle xoá 14 ngày), `<prefix>-deploy` (bundle `deploy/` do CI upload). Tất cả SSE-S3.
 - **ECR:** repo `outline`, lifecycle giữ 10 image.
 - **IAM instance role:** `AmazonSSMManagedInstanceCore`, ECR pull, S3 RW attachments/backups, S3 read deploy, SSM GetParameters `/outline/*`.
@@ -89,9 +89,9 @@ Workflow upstream sẵn có trong `.github/workflows/` bị xoá khỏi fork (tr
 ## Bootstrap (một lần, chạy local bằng creds env)
 1. `infra/terraform/bootstrap`: apply → state bucket.
 2. `infra/terraform/main`: apply lần đầu.
-3. Người dùng: tạo record A `outline.launch-mate.com` → EIP ở account giữ zone.
+3. Người dùng: tạo record A `outline.launch-mate.com` → EIP (zone cùng account 257394472423).
 4. Người dùng: tạo Google OAuth client (redirect `https://outline.launch-mate.com/auth/google.callback`), `aws ssm put-parameter --overwrite` 2 giá trị.
-5. Set GitHub repo variables `AWS_ROLE_ARN`, `AWS_REGION`, `ECR_REPO`, `DEPLOY_BUCKET`, `INSTANCE_ID`; tạo environment `production`.
+5. Set GitHub repo variables `AWS_REGION`, `ECR_REGISTRY`, `AWS_DEPLOY_ROLE_ARN`, `AWS_PLAN_ROLE_ARN`, `AWS_APPLY_ROLE_ARN`, `DEPLOY_BUCKET`, `INSTANCE_ID`; tạo environment `production`.
 6. Chạy build-deploy lần đầu.
 
 ## Kiểm chứng

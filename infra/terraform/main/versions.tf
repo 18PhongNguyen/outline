@@ -13,7 +13,7 @@ terraform {
   }
 
   backend "s3" {
-    bucket       = "outline-tfstate-970385383746"
+    bucket       = "outline-tfstate-257394472423"
     key          = "main/terraform.tfstate"
     region       = "ap-southeast-1"
     use_lockfile = true

@@ -20,8 +20,10 @@ provider "aws" {
   }
 }
 
+data "aws_caller_identity" "current" {}
+
 resource "aws_s3_bucket" "tfstate" {
-  bucket = "outline-tfstate-970385383746"
+  bucket = "outline-tfstate-${data.aws_caller_identity.current.account_id}"
 
   lifecycle {
     prevent_destroy = true

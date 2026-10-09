@@ -10,7 +10,7 @@ variable "domain" {
 
 variable "instance_type" {
   type    = string
-  default = "t3.small"
+  default = "t4g.small"
 }
 
 variable "github_repo" {

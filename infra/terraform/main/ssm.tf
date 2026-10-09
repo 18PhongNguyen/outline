@@ -11,22 +11,36 @@ resource "random_password" "postgres" {
   special = false
 }
 
+# Values are seeded from the previous deployment so the restored database keeps
+# working; Terraform must not overwrite them.
 resource "aws_ssm_parameter" "secret_key" {
   name  = "/outline/SECRET_KEY"
   type  = "SecureString"
   value = random_id.secret_key.hex
+
+  lifecycle {
+    ignore_changes = [value]
+  }
 }
 
 resource "aws_ssm_parameter" "utils_secret" {
   name  = "/outline/UTILS_SECRET"
   type  = "SecureString"
   value = random_id.utils_secret.hex
+
+  lifecycle {
+    ignore_changes = [value]
+  }
 }
 
 resource "aws_ssm_parameter" "postgres_password" {
   name  = "/outline/POSTGRES_PASSWORD"
   type  = "SecureString"
   value = random_password.postgres.result
+
+  lifecycle {
+    ignore_changes = [value]
+  }
 }
 
 resource "aws_ssm_parameter" "google_client_id" {

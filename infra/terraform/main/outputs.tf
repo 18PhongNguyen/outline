@@ -31,5 +31,5 @@ output "apply_role_arn" {
 }
 
 output "tf_state_bucket" {
-  value = "outline-tfstate-970385383746"
+  value = "outline-tfstate-${local.account_id}"
 }
