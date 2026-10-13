@@ -598,7 +598,9 @@ export type NotificationSettings = {
 export const NotificationEventDefaults: Record<NotificationEventType, boolean> =
   {
     [NotificationEventType.PublishDocument]: false,
-    [NotificationEventType.UpdateDocument]: true,
+    // On-prem: document-updated notifications are off by default. The KB bot
+    // edits docs daily; changes are reported in the KB daily digest instead.
+    [NotificationEventType.UpdateDocument]: false,
     [NotificationEventType.CreateCollection]: false,
     [NotificationEventType.CreateComment]: true,
     [NotificationEventType.ResolveComment]: true,
